@@ -152,6 +152,11 @@ class BufferPoolManager {
    */
   void FlushAllPagesImpl();
 
+  /**
+   * Find a usable frame from free list or replacer
+   */
+  frame_id_t GetUsableFrameImpl();
+
   /** Number of pages in the buffer pool. */
   size_t pool_size_;
   /** Array of buffer pool pages. */

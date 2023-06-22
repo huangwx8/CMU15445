@@ -21,6 +21,13 @@
 
 namespace bustub {
 
+struct ClockReplacerFrameInfo
+{
+  int free : 1;
+  int ref : 1;
+  ClockReplacerFrameInfo() : free(0), ref(0) {}
+};
+
 /**
  * ClockReplacer implements the clock replacement policy, which approximates the Least Recently Used policy.
  */
@@ -47,6 +54,18 @@ class ClockReplacer : public Replacer {
 
  private:
   // TODO(student): implement me!
+
+  bool FindVictim(frame_id_t *frame_id);
+
+  void Step();
+
+  std::vector<ClockReplacerFrameInfo> frame_infos_;
+
+  size_t clock_hand_{0};
+
+  size_t size_{0};
+
+  std::mutex mutex_{};
 };
 
 }  // namespace bustub
