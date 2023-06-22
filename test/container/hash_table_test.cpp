@@ -21,7 +21,7 @@
 namespace bustub {
 
 // NOLINTNEXTLINE
-TEST(HashTableTest, DISABLED_SampleTest) {
+TEST(HashTableTest, SampleTest) {
   auto *disk_manager = new DiskManager("test.db");
   auto *bpm = new BufferPoolManager(50, disk_manager);
 
@@ -98,6 +98,41 @@ TEST(HashTableTest, DISABLED_SampleTest) {
       EXPECT_TRUE(ht.Remove(nullptr, i, 2 * i));
     }
   }
+  disk_manager->ShutDown();
+  remove("test.db");
+  delete disk_manager;
+  delete bpm;
+}
+
+TEST(HashTableTest, ResizeTest) {
+  auto *disk_manager = new DiskManager("test.db");
+  auto *bpm = new BufferPoolManager(50, disk_manager);
+
+  LinearProbeHashTable<int, int, IntComparator> ht("blah", bpm, IntComparator(), 892, HashFunction<int>());
+
+  // fill hash table
+  for (int i = 0; i < 892; i++) {
+    EXPECT_TRUE(ht.Insert(nullptr, i / 8, i));
+  }
+
+  // check values
+  for (int i = 0; i < 892 / 8; i++) {
+    std::vector<int> res;
+    ht.GetValue(nullptr, i, &res);
+    EXPECT_EQ(8, res.size());
+    int sum = 0;
+    for (int val : res) {
+      sum += val;
+    }
+    EXPECT_EQ((i * 64 + 28), sum);
+  }
+
+  // this line should invoke resize()
+  EXPECT_TRUE(ht.Insert(nullptr, 114514, 1919810));
+
+  // Check size
+  EXPECT_EQ(892 * 2, ht.GetSize());
+
   disk_manager->ShutDown();
   remove("test.db");
   delete disk_manager;

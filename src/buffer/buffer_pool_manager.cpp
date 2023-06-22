@@ -71,25 +71,28 @@ Page *BufferPoolManager::FetchPageImpl(page_id_t page_id)
 		page->WUnlatch();
 	}
 
-	frame_id = GetUsableFrameImpl();
-
-	if (frame_id != -1)
+	if (!page)
 	{
-		page_table_[page_id] = frame_id;
+		frame_id = GetUsableFrameImpl();
 
-		page = &pages_[frame_id];
+		if (frame_id != -1)
+		{
+			page_table_[page_id] = frame_id;
 
-		page->WLatch();
+			page = &pages_[frame_id];
 
-		page->page_id_ = page_id;
+			page->WLatch();
 
-		page->pin_count_ = 1;
+			page->page_id_ = page_id;
 
-		replacer_->Pin(frame_id);
+			page->pin_count_ = 1;
 
-		disk_manager_->ReadPage(page_id, page->data_);
+			replacer_->Pin(frame_id);
 
-		page->WUnlatch();
+			disk_manager_->ReadPage(page_id, page->data_);
+
+			page->WUnlatch();
+		}
 	}
 
 	if (locked)
