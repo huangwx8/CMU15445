@@ -59,16 +59,12 @@ Page *BufferPoolManager::FetchPageImpl(page_id_t page_id)
 
 		page = &pages_[frame_id];
 
-		page->WLatch();
-
 		if (page->pin_count_ == 0) 
 		{
 			replacer_->Pin(frame_id);
 		}
 
 		page->pin_count_++;
-
-		page->WUnlatch();
 	}
 
 	if (!page)
@@ -81,8 +77,6 @@ Page *BufferPoolManager::FetchPageImpl(page_id_t page_id)
 
 			page = &pages_[frame_id];
 
-			page->WLatch();
-
 			page->page_id_ = page_id;
 
 			page->pin_count_ = 1;
@@ -90,8 +84,6 @@ Page *BufferPoolManager::FetchPageImpl(page_id_t page_id)
 			replacer_->Pin(frame_id);
 
 			disk_manager_->ReadPage(page_id, page->data_);
-
-			page->WUnlatch();
 		}
 	}
 
@@ -121,8 +113,6 @@ bool BufferPoolManager::UnpinPageImpl(page_id_t page_id, bool is_dirty)
 
 		page = &pages_[frame_id];
 
-		page->WLatch();
-
 		if (page->pin_count_ > 0)
 		{
 			page->pin_count_--;
@@ -139,8 +129,6 @@ bool BufferPoolManager::UnpinPageImpl(page_id_t page_id, bool is_dirty)
 
 			success = true;
 		}
-
-		page->WUnlatch();
 	}
 
 	if (locked)
@@ -170,13 +158,9 @@ bool BufferPoolManager::FlushPageImpl(page_id_t page_id)
 
 		page = &pages_[frame_id];
 
-		page->WLatch();
-
 		disk_manager_->WritePage(page_id, page->data_);
 
 		page->is_dirty_ = false;
-
-		page->WUnlatch();
 
 		success = true;
 	}
@@ -212,8 +196,6 @@ Page *BufferPoolManager::NewPageImpl(page_id_t *page_id)
 
 		page = &pages_[frame_id];
 
-		page->WLatch();
-
 		bzero(page->data_, PAGE_SIZE);
 
 		disk_manager_->WritePage(*page_id, page->data_);
@@ -225,8 +207,6 @@ Page *BufferPoolManager::NewPageImpl(page_id_t *page_id)
 		replacer_->Pin(frame_id);
 
 		page->is_dirty_ = false;
-
-		page->WUnlatch();
 	}
 
 	if (locked)
@@ -260,8 +240,6 @@ bool BufferPoolManager::DeletePageImpl(page_id_t page_id)
 
 		page = &pages_[frame_id];
 
-		page->WLatch();
-
 		if (page->pin_count_ == 0)
 		{
 			page_table_.erase(page_id);
@@ -284,8 +262,6 @@ bool BufferPoolManager::DeletePageImpl(page_id_t page_id)
 		{
 			success = false;
 		}
-
-		page->WUnlatch();
 	}
 	else 
 	{
@@ -315,13 +291,9 @@ void BufferPoolManager::FlushAllPagesImpl()
 
 		page = &pages_[frame_id];
 
-		page->WLatch();
-		
 		disk_manager_->WritePage(pages_->page_id_, page->data_);
 		
 		page->is_dirty_ = false;
-		
-		page->WUnlatch();
 	}
 
 	latch_.unlock();
@@ -347,8 +319,6 @@ frame_id_t BufferPoolManager::GetUsableFrameImpl()
 	{
 		Page* page = &pages_[frame_id];
 
-		page->WLatch();
-
 		if (page->pin_count_ > 0)
 		{
 			LOG_ERROR("GetUsableFrameImpl page is pinned");
@@ -361,8 +331,6 @@ frame_id_t BufferPoolManager::GetUsableFrameImpl()
 			disk_manager_->WritePage(page->page_id_, page->data_);
 			page->is_dirty_ = false;
 		}
-
-		page->WUnlatch();
 	}
 
 	return frame_id;

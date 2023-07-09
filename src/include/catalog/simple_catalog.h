@@ -54,14 +54,38 @@ class SimpleCatalog {
    */
   TableMetadata *CreateTable(Transaction *txn, const std::string &table_name, const Schema &schema) {
     BUSTUB_ASSERT(names_.count(table_name) == 0, "Table names should be unique!");
-    return nullptr;
+    
+    std::unique_ptr<TableHeap> table_heap = std::make_unique<TableHeap>(bpm_, lock_manager_, log_manager_, txn);
+    table_oid_t table_oid = next_table_oid_++;
+
+    std::unique_ptr<TableMetadata> metadata = std::make_unique<TableMetadata>(schema, table_name, std::move(table_heap), table_oid);
+    TableMetadata* raw_metadata = metadata.get();
+
+    tables_.emplace(table_oid, std::move(metadata));
+    names_.emplace(table_name, table_oid);
+
+    return raw_metadata;
   }
 
   /** @return table metadata by name */
-  TableMetadata *GetTable(const std::string &table_name) { return nullptr; }
+  TableMetadata *GetTable(const std::string &table_name) {
+    if (names_.count(table_name)) {
+      return GetTable(names_[table_name]);
+    } else {
+      throw std::out_of_range("table name out of range.");
+      return nullptr;
+    }
+  }
 
   /** @return table metadata by oid */
-  TableMetadata *GetTable(table_oid_t table_oid) { return nullptr; }
+  TableMetadata *GetTable(table_oid_t table_oid) {
+    if (tables_.count(table_oid)) {
+      return tables_[table_oid].get();
+    } else {
+      throw std::out_of_range("table oid out of range.");
+      return nullptr;
+    }
+  }
 
  private:
   [[maybe_unused]] BufferPoolManager *bpm_;

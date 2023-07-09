@@ -162,7 +162,8 @@ class AggregationExecutor : public AbstractExecutor {
    */
   AggregationExecutor(ExecutorContext *exec_ctx, const AggregationPlanNode *plan,
                       std::unique_ptr<AbstractExecutor> &&child)
-      : AbstractExecutor(exec_ctx) {}
+      : AbstractExecutor(exec_ctx), plan_(plan), child_(std::move(child)),
+        aht_(plan->GetAggregates(), plan->GetAggregateTypes()), aht_iterator_(aht_.Begin()) {}
 
   /** Do not use or remove this function, otherwise you will get zero points. */
   const AbstractExecutor *GetChildExecutor() const { return child_.get(); }
@@ -171,7 +172,38 @@ class AggregationExecutor : public AbstractExecutor {
 
   void Init() override {}
 
-  bool Next(Tuple *tuple) override { return false; }
+  bool Next(Tuple *tuple) override {
+    if (!inited_) {
+      BuildAggregationHashTable();
+      aht_iterator_ = aht_.Begin();
+      inited_ = true;
+    }
+
+    if (aht_iterator_ != aht_.End()) {
+      const AggregateKey& key = aht_iterator_.Key();
+      const AggregateValue& val = aht_iterator_.Val();
+
+      if (plan_->GetHaving()) {
+        if (!(plan_->GetHaving()->EvaluateAggregate(key.group_bys_, val.aggregates_).GetAs<bool>())) {
+          ++aht_iterator_;
+          return Next(tuple);
+        }
+      }
+
+      const Schema* out_schema = GetOutputSchema();
+      std::vector<Value> out_values;
+
+      for (const Column& col : out_schema->GetColumns()) {
+        out_values.emplace_back(col.GetExpr()->EvaluateAggregate(key.group_bys_, val.aggregates_));
+      }
+
+      *tuple = Tuple(out_values, out_schema);
+      ++aht_iterator_;
+      return true;
+    } else {
+      return false;
+    }
+  }
 
   /** @return the tuple as an AggregateKey */
   AggregateKey MakeKey(const Tuple *tuple) {
@@ -192,13 +224,28 @@ class AggregationExecutor : public AbstractExecutor {
   }
 
  private:
+  void BuildAggregationHashTable() {
+    Tuple tuple;
+    while (child_->Next(&tuple)) {
+      aht_.InsertCombine(MakeKey(&tuple), MakeVal(&tuple));
+      // for (Value g : MakeKey(&tuple).group_bys_) {
+      //   LOG_DEBUG("Insert K=%s", g.ToString().c_str());
+      // }
+      // for (Value a : MakeVal(&tuple).aggregates_) {
+      //   LOG_DEBUG("Insert V=%s", a.ToString().c_str());
+      // }
+    }
+  }
+
   /** The aggregation plan node. */
   const AggregationPlanNode *plan_;
   /** The child executor whose tuples we are aggregating. */
   std::unique_ptr<AbstractExecutor> child_;
   /** Simple aggregation hash table. */
-  // Uncomment me! SimpleAggregationHashTable aht_;
+  SimpleAggregationHashTable aht_;
   /** Simple aggregation hash table iterator. */
-  // Uncomment me! SimpleAggregationHashTable::Iterator aht_iterator_;
+  SimpleAggregationHashTable::Iterator aht_iterator_;
+
+  bool inited_ = false;
 };
 }  // namespace bustub
